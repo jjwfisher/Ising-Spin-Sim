@@ -11,7 +11,7 @@
 -- Description: Performs a simulation of the Ising Spin Model (for ferromagnetism), using a 16 bit array & a Horowitz random number generator.
 -- 
 -- Current value of x used to calcualed probabilities is: 0.5
--- Revision: 1.7
+-- Revision: 2.1
 ----------------------------------------------------------------------------------
 
 library IEEE;
@@ -31,13 +31,13 @@ architecture Behavioral of fullStateSimulation is
     --counters:
     signal buttonCount_reg, buttonCount_next : UNSIGNED(buttonMaxCount-1 downto 0);
     signal genCounter1_reg, genCounter1_next : UNSIGNED(3 downto 0) := "0000"; --counts up to 15 (but gets stopped at 15, or 16 iterations)
-    signal genCounter2_reg, genCounter2_next : UNSIGNED(3 downto 0) := "0000"; --counts up to 7 (gets stopped at 7, or 8 iterations)
-    signal tempStoreCounter_reg, tempStoreCounter_next : UNSIGNED(0 downto 0) := "0"; --flicks between 1 & 0, used for indexing the tempStore register
+    signal genCounter2_reg, genCounter2_next : UNSIGNED(2 downto 0) := "000"; --counts up to 7 (gets stopped at 7, or 8 iterations)
+--    signal tempStoreCounter_reg, tempStoreCounter_next : UNSIGNED(0 downto 0) := "0"; --flicks between 1 & 0, used for indexing the tempStore register
     --storage registers:
     signal output_reg, output_next : STD_LOGIC := '0'; --debounced button output
     signal shift_reg, shift_next : STD_LOGIC_VECTOR(30 downto 0) := "0110100101011010001110100101101"; --random number shift register
     signal spinStates_reg, spinStates_next : STD_LOGIC_VECTOR(15 downto 0); --stores the state of 16 spins
-    signal tempStore_reg, tempStore_next : STD_LOGIC_VECTOR(1 downto 0); --stores up to 2 new values of the array of spins
+    signal tempStore_reg, tempStore_next : STD_LOGIC_VECTOR(15 downto 0); --stores up to 2 new values of the array of spins
     --state machines:
     type buttonStateType is (pressed, waiting);
     signal buttonState_reg, buttonState_next : buttonStateType := waiting;
@@ -45,14 +45,13 @@ architecture Behavioral of fullStateSimulation is
     signal genState_reg, genState_next : genStateType := populate;
 begin
 
-process(clk, buttonCount_next, output_next, buttonState_next, genState_next, shift_next, tempStoreCounter_next, tempStore_next, genCounter1_next, genCounter2_next, spinStates_next)
+process(clk, buttonCount_next, output_next, buttonState_next, genState_next, shift_next, tempStore_next, genCounter1_next, genCounter2_next, spinStates_next)
 begin
     if(clk'event and clk='1') then
         --counters:
         buttonCount_reg <= buttonCount_next;
         genCounter1_reg <= genCounter1_next;
         genCounter2_reg <= genCounter2_next;
-        tempStoreCounter_reg <= tempStoreCounter_next;
         --signals
         output_reg <= output_next;
         spinStates_reg <= spinStates_next;
@@ -99,7 +98,7 @@ output_next <= '1' when (btnC = '1' and buttonState_reg = waiting and buttonCoun
 
 --MAIN STATE MACHINE:
 
-process(genState_reg, output_reg, genCounter1_reg, genCounter2_reg, tempStoreCounter_reg, tempStore_reg, shift_reg, spinStates_reg)
+process(genState_reg, output_reg, genCounter1_reg, genCounter2_reg, tempStore_reg, shift_reg, spinStates_reg)
 begin
     case genState_reg is
         when populate => --initial state: generate 16 random numbers, and initialise the spin registers
@@ -126,11 +125,10 @@ begin
             spinStates_next <= spinStates_reg;
             tempStore_next <= tempStore_reg;
             genCounter1_next <= genCounter1_reg;
-            tempStoreCounter_next <= tempStoreCounter_reg;
             
             if (output_reg = '1') then
                 genCounter1_next <= to_unsigned(0,4);
-                genCounter2_next <= to_unsigned(0,4);
+                genCounter2_next <= to_unsigned(0,3);
                 genState_next <= throw;
             else
                 genState_next <= buttonWait;
@@ -148,7 +146,7 @@ begin
             
             if (genCounter2_reg = genMaxCount2) then
                 genState_next <= calculate;
-                genCounter2_next <= to_unsigned(0,4);
+                genCounter2_next <= to_unsigned(0,3);
                 --if counter has counted 8 times, move to calculate state with new 8 bit random number
             else
                 genCounter2_next <= genCounter2_reg + 1;
@@ -157,41 +155,41 @@ begin
             end if;
         when calculate =>
             shift_next <= shift_reg;
-            spinStates_next <= spinStates_reg;
             --(above) Keep values from previous iterations
             
             if (spinStates_reg(to_integer(genCounter1_reg-1)) = '1' and spinStates_reg(to_integer(genCounter1_reg+1)) = '1') then --neighbours aligned UP
-                tempStoreCounter_next <= tempStoreCounter_reg + 1;
                 if ( UNSIGNED(shift_reg(7 downto 0) ) < to_unsigned(10#186#,8) ) then
-                    tempStore_next( to_integer(tempStoreCounter_reg ) ) <= '1'; --UP
+                    tempStore_next( to_integer(genCounter1_reg) ) <= '1'; --UP
                 elsif ( UNSIGNED(shift_reg(7 downto 0) ) >= to_unsigned(10#186#,8) ) then
-                    tempStore_next( to_integer( tempStoreCounter_reg ) ) <= '0'; --DOWN
-                spinStates_next(to_integer(genCounter1_reg - 1)) <= tempStore_reg(to_integer(tempStoreCounter_reg - 1) ); --UPDATE LEFT NEIGHBOUR
+                    tempStore_next( to_integer(genCounter1_reg) ) <= '0'; --DOWN
+--                spinStates_next(to_integer(genCounter1_reg - 1)) <= tempStore_reg(to_integer(tempStoreCounter_reg - 1) ); --UPDATE LEFT NEIGHBOUR
                 end if; --(above) IF neighbours aligned UP, then UP is more likely than DOWN, because UP is the ground state (lower energy).
+                
             elsif (spinStates_reg(to_integer(genCounter1_reg-1)) = '0' and spinStates_reg(to_integer(genCounter1_reg+1)) = '0') then --neighbours aligned DOWN
-                tempStoreCounter_next <= tempStoreCounter_reg + 1;
                 if ( UNSIGNED(shift_reg(7 downto 0) ) < to_unsigned(10#186#,8) ) then
-                    tempStore_next( to_integer(tempStoreCounter_reg ) ) <= '0'; --DOWN
+                    tempStore_next( to_integer(genCounter1_reg) ) <= '0'; --DOWN
                 elsif ( UNSIGNED(shift_reg(7 downto 0) ) >= to_unsigned(10#186#,8) ) then
-                    tempStore_next( to_integer( tempStoreCounter_reg ) ) <= '1'; --UP
+                    tempStore_next( to_integer(genCounter1_reg ) ) <= '1'; --UP
                 end if; --(above) IF neighbours aligned DOWN, then DOWN is more likely than UP, because DOWN is the ground state (lower energy).
+                
             elsif( ( spinStates_reg(to_integer(genCounter1_reg-1) ) = '0' and spinStates_reg(to_integer(genCounter1_reg+1) ) = '1' ) or ( spinStates_reg(to_integer(genCounter1_reg-1) ) = '1' and spinStates_reg(to_integer(genCounter1_reg+1) ) = '0') ) then --neighbours anti-aligned
-                tempStoreCounter_next <= tempStoreCounter_reg + 1;
                 if ( UNSIGNED(shift_reg(7 downto 0) ) >= to_unsigned(10#127#,8) ) then
-                    tempStore_next( to_integer(tempStoreCounter_reg ) ) <= '1'; --UP
+                    tempStore_next( to_integer(genCounter1_reg) ) <= '1'; --UP
                 elsif ( UNSIGNED(shift_reg(7 downto 0) ) < to_unsigned(10#127#,8) ) then
-                    tempStore_next( to_integer( tempStoreCounter_reg ) ) <= '0'; --DOWN
-                spinStates_next(to_integer(genCounter1_reg - 1)) <= tempStore_reg(to_integer(tempStoreCounter_reg - 1) ); --UPDATE LEFT NEIGHBOUR
+                    tempStore_next( to_integer(genCounter1_reg) ) <= '0'; --DOWN
+--                spinStates_next(to_integer(genCounter1_reg - 1)) <= tempStore_reg(to_integer(tempStoreCounter_reg - 1) ); --UPDATE LEFT NEIGHBOUR
                 end if;
                 --(above) IF neighbours anti-aligned, decide on new positions based on random number & save them in the temp array, whilst updating spin array with last iteration values
             end if;
             if (genCounter1_reg = genMaxCount1) then
                 genState_next <= buttonWait;
                 genCounter1_next <= to_unsigned(0,4);
+                spinStates_next <= spinStates_reg;
             else
                 genState_next <= throw;
-                genCounter2_next <= to_unsigned(0,4);
+                genCounter2_next <= to_unsigned(0,3);
                 genCounter1_next <= genCounter1_reg + 1;
+                spinStates_next <= tempStore_reg;
             end if;
     end case;
 end process;
