@@ -10,8 +10,8 @@
 -- Tool Versions: 
 -- Description: Performs a simulation of the Ising Spin Model (for ferromagnetism), using a 16 bit array & a Horowitz random number generator.
 -- 
--- 
--- Revision: 1.5
+-- Current value of x used to calcualed probabilities is: 0.5
+-- Revision: 1.7
 ----------------------------------------------------------------------------------
 
 library IEEE;
@@ -126,11 +126,11 @@ begin
             spinStates_next <= spinStates_reg;
             tempStore_next <= tempStore_reg;
             genCounter1_next <= genCounter1_reg;
-            genCounter2_next <= genCounter2_reg;
             tempStoreCounter_next <= tempStoreCounter_reg;
             
             if (output_reg = '1') then
                 genCounter1_next <= to_unsigned(0,4);
+                genCounter2_next <= to_unsigned(0,4);
                 genState_next <= throw;
             else
                 genState_next <= buttonWait;
@@ -138,7 +138,6 @@ begin
         when throw =>
             spinStates_next <= spinStates_reg;
             tempStore_next <= tempStore_reg;
-            genCounter2_next <= genCounter2_reg + 1;
             genCounter1_next <= genCounter1_reg;
             
             --RANDOM NUMBER GEN:
@@ -147,12 +146,14 @@ begin
             --the input of the shift registers is the XNOR logic of bit 27 and bit 30
             --Every clock cycle, the value of 1 bit gets copied up to the next bit
             
-            if (genCounter2_reg > genMaxCount2) then
+            if (genCounter2_reg = genMaxCount2) then
                 genState_next <= calculate;
                 genCounter2_next <= to_unsigned(0,4);
                 --if counter has counted 8 times, move to calculate state with new 8 bit random number
             else
+                genCounter2_next <= genCounter2_reg + 1;
                 genState_next <= throw;
+                
             end if;
         when calculate =>
             shift_next <= shift_reg;
@@ -161,17 +162,17 @@ begin
             
             if (spinStates_reg(to_integer(genCounter1_reg-1)) = '1' and spinStates_reg(to_integer(genCounter1_reg+1)) = '1') then --neighbours aligned UP
                 tempStoreCounter_next <= tempStoreCounter_reg + 1;
-                if ( UNSIGNED(shift_reg(7 downto 0) ) < to_unsigned(10#251#,8) ) then
+                if ( UNSIGNED(shift_reg(7 downto 0) ) < to_unsigned(10#186#,8) ) then
                     tempStore_next( to_integer(tempStoreCounter_reg ) ) <= '1'; --UP
-                elsif ( UNSIGNED(shift_reg(7 downto 0) ) >= to_unsigned(10#251#,8) ) then
+                elsif ( UNSIGNED(shift_reg(7 downto 0) ) >= to_unsigned(10#186#,8) ) then
                     tempStore_next( to_integer( tempStoreCounter_reg ) ) <= '0'; --DOWN
                 spinStates_next(to_integer(genCounter1_reg - 1)) <= tempStore_reg(to_integer(tempStoreCounter_reg - 1) ); --UPDATE LEFT NEIGHBOUR
                 end if; --(above) IF neighbours aligned UP, then UP is more likely than DOWN, because UP is the ground state (lower energy).
             elsif (spinStates_reg(to_integer(genCounter1_reg-1)) = '0' and spinStates_reg(to_integer(genCounter1_reg+1)) = '0') then --neighbours aligned DOWN
                 tempStoreCounter_next <= tempStoreCounter_reg + 1;
-                if ( UNSIGNED(shift_reg(7 downto 0) ) < to_unsigned(10#251#,8) ) then
+                if ( UNSIGNED(shift_reg(7 downto 0) ) < to_unsigned(10#186#,8) ) then
                     tempStore_next( to_integer(tempStoreCounter_reg ) ) <= '0'; --DOWN
-                elsif ( UNSIGNED(shift_reg(7 downto 0) ) >= to_unsigned(10#251#,8) ) then
+                elsif ( UNSIGNED(shift_reg(7 downto 0) ) >= to_unsigned(10#186#,8) ) then
                     tempStore_next( to_integer( tempStoreCounter_reg ) ) <= '1'; --UP
                 end if; --(above) IF neighbours aligned DOWN, then DOWN is more likely than UP, because DOWN is the ground state (lower energy).
             elsif( ( spinStates_reg(to_integer(genCounter1_reg-1) ) = '0' and spinStates_reg(to_integer(genCounter1_reg+1) ) = '1' ) or ( spinStates_reg(to_integer(genCounter1_reg-1) ) = '1' and spinStates_reg(to_integer(genCounter1_reg+1) ) = '0') ) then --neighbours anti-aligned
