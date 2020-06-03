@@ -1,2 +1,5 @@
 # Ising-Spin-Sim
-Code for the Ising spin simulation
+
+Single VHDL source file, which can be used with a constraints file to run an Ising Spin simulation - on an FPGA device (designed for an Artix-7 core, on a BASYS 3 board).
+
+
