@@ -2,9 +2,9 @@
 
 Single VHDL source file, which can be used with a constraints file to run an Ising Spin simulation - on an FPGA device (designed for an Artix-7 core, on a BASYS 3 board).
 
-#Author:
+# Author:
 
-Jordan Fisher is the sole creator of this code, guidance was given by university tutors.
+Jordan Fisher is the sole author of this code, guidance was given by university tutors.
 
 # License
 
